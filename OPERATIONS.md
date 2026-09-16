@@ -4,7 +4,7 @@ This release replaces the visual prototype with a persistent storefront. It uses
 
 ## First launch
 
-1. Open **Store admin** in the footer, then sign in with the owner's ChatGPT account (the email configured in OWNER_EMAIL).
+1. Open **Your account** and sign in with the owner's ChatGPT account (the email configured in OWNER_EMAIL). Once signed in, **Store admin** appears in the footer and account page.
 2. In Products, add real product photographs, model compatibility, colour, descriptions, prices and stock. Use one product per sellable variant. Publish products individually. There are no seeded products or fake reviews.
 3. In Settings, add the business address, WhatsApp number in 91XXXXXXXXXX format, serviceable pincodes, delivery charge, optional free-delivery threshold and your actual delivery, return and privacy policies. State how customer information is handled and how customers can request deletion. Review these policies against your business obligations before accepting orders.
 4. Enable **Open the store for order requests** and save. Public browsing is available before ordering opens. Availability is checked server-side at checkout.
@@ -35,3 +35,10 @@ Current bounded lists: 500 products, 200 owner orders, 50 customer orders; 100 s
 The homepage renders catalogue content on the server. The hero is compressed to WebP; product images load lazily. No product data or orders are stored solely in browser localStorage.
 
 Remaining integrations: online payment gateway, automatic courier updates, messaging, customer phone/email authentication, coupon campaigns and advanced accounting/reporting. A store announcement and configurable free-delivery threshold are available now. Full return/refund automation and partial returns are not implemented.
+
+## Admin authorization
+
+The current authentication model has no role column. `lib/store-server.ts` already identifies the owner by comparing the platform-authenticated email with the configured OWNER_EMAIL and `/api/store` returns its `admin` boolean. The storefront requires a completed account fetch, an authenticated user, and `admin === true` for every admin entry, dashboard, and editor. Customer profile fields never grant privileges. No new login or hardcoded account was introduced by this fix.
+
+The existing admin route is `/#admin`. Guests and customers are returned to `/#home` without mounting the admin interface; `/admin` is not an application route. Unknown or failed authorization loads expose no admin controls. Refreshing or returning to the tab rechecks the account and clears open editors. Product, settings, order-status, and photo-upload requests remain independently protected by the existing server owner check.
+

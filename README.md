@@ -1,138 +1,60 @@
 # Makkal Mobile Hub
 
-Current implementation: React + TypeScript, Vinext, Cloudflare-compatible backend, D1 (SQLite) and R2. MongoDB migration is not implemented yet.
+React + TypeScript storefront with API handlers running in the same Vinext application. Local development uses Cloudflare D1 (SQLite) and R2 emulation. MongoDB and a separate backend server are not required.
 
-## Owner configuration
+## Run locally (Windows PowerShell)
 
-Set `OWNER_EMAIL` privately in the hosting environment to the admin account's verified email. An unset value denies all owner access. The GitHub copy removes the personal admin email and the original managed Site project ID. Provision your own resources or reconnect the existing Site deliberately before deployment. Platform authentication is still required; do not trust visitor-supplied identity headers on an independent host.
+Install Node.js 22.13 or later and Git. From this repository's root:
 
-See `OPERATIONS.md` for features, limits and operating instructions. This source does not include live customer data, secrets or uploaded product photos.
-
----
-
-# vinext-starter
-
-A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
-
-## Prerequisites
-
-- Node.js `>=22.13.0`
-- Portable: Windows, macOS, or Linux; no Bash required
-- Managed Linux: managed Linux runtime with Bash, `flock`, `curl`, `sha256sum`, and GNU `timeout`
-- Git is required only for publishing
-
-## Sites Lifecycle
-
-The Sites initializer copies the shared starter and selects managed-linux only when `SITES_MANAGED_LINUX_CONTAINER=1`; otherwise it selects portable. It saves the selection only in ignored `.sites-runtime/execution-profile.json`. Both profiles copy/configure first, then use the plugin's separate `install-dependencies.mjs` step to measure installation independently. Edit source under `app/` and follow the Sites skill for installation, preview, builds, and publishing.
-
-Whenever reopening or moving a checkout, run `node <plugin-root>/scripts/configure-execution-profile.mjs` before project commands. Profile changes do not alter tracked source or require reinstalling otherwise-valid dependencies; restart an existing preview to use the new selection. Do not commit or upload `.sites-runtime/`.
-
-This starter does not use `wrangler.jsonc`.
-
-`install:ci` runs `npm ci` once against the shared lockfile, disables parent-workspace discovery, and includes required dev/optional dependencies despite production/omit settings. Sharp defaults to prebuilt binaries unless explicitly configured otherwise. Do not overlap installers.
-
-- **Portable:** Preserve host HOME, npm cache, registry, proxy, temporary paths, retry/concurrency settings, and lifecycle-script policy. Use `--prefer-offline --no-audit --no-fund`.
-- **Managed Linux:** Use the existing project-local HOME/cache/tmp setup and Linux install lock, tarball preflight, and timeout. Restore the image-seeded npm cache only when its lockfile hash matches; retain network fallback. Builds keep their existing timeout. These helpers are not invoked by the portable profile.
-
-`scripts/sites-env.mjs` preserves the caller's HOME, npm cache, proxy, XDG, and temporary-directory configuration while defaulting Wrangler and Miniflare state to the checkout. If npm reports an unwritable cache, select a writable path with `npm_config_cache` for that install. The `dev` and `start` scripts also keep Wrangler logs inside the checkout. Generated `.sites-runtime/` and `.wrangler/` directories are disposable and ignored by Git.
-
-On portable, `npm run dev` uses `vinext dev` with HMR, starting at port 5173. Vinext records the running server in ignored `.vinext/` state, rejects an ordinary duplicate launch, and recovers stale state after a stopped process; exactly simultaneous starts can race. Pass `--port <port>` or `--hostname <host>` after `npm run dev --` when needed; keep portable previews on loopback.
-
-On managed Linux, use `sites-preview start` only for requested browser QA. The project's dev script runs Vite and accepts the supervisor's `--host 0.0.0.0 --port 4173 --strictPort` arguments. The internal browser uses `http://terminal.local:4173/`; it is not a user-facing URL. The supervisor owns the preview lifecycle. The ignored local profile survives the supervisor's cleared process environment.
-
-The portable profile simulates ChatGPT sign-in only for loopback development requests. Visit `/signin-with-chatgpt?return_to=/` to sign in as `local_seedy` (`seedy@sites.test`, display name `Seedy`) and `/signout-with-chatgpt?return_to=/` to sign out. The development cookie preserves that identity across server restarts. Mock auth is disabled in the managed-linux profile and is not included in production builds; hosted authentication remains dispatch-owned.
-
-The Worker uses `vinext/server/fetch-handler`, including Vinext's config-aware image handling. After building, `npm start` runs that Worker locally through Wrangler on `127.0.0.1`, sharing `.wrangler/state` with dev preview and local D1 migrations; it does not deploy the site or simulate sign-in. Use the URL printed by the server. Pass `npm start -- --port <port>` to select a different built-preview port.
-
-Local previews use Miniflare's placeholder `Request.cf` metadata without a network lookup. Set `CLOUDFLARE_CF_FETCH_ENABLED=true` to opt into fetching preview metadata; this setting does not change hosted request metadata.
-
-Local tool usage metrics are disabled by default. Set `WRANGLER_SEND_METRICS=true` to opt in.
-
-## Included Shape
-
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `@cloudflare/workers-types` provides Worker types; `cloudflare-env.d.ts` declares optional `DB`/`BUCKET` bindings—update these declarations if binding names change
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Use it as the durable user key; use email and name for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive `oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty `name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by `oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```powershell
+corepack pnpm install --frozen-lockfile
+npm run build
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_conscious_shinko_yamashiro.sql
+npm run dev
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+Run the database initialization command **once for a new local database**, not on every start. After that, use only `npm run dev`. Open the URL printed by the server (normally http://localhost:5173). The frontend and backend share this address; `/api/store` and `/api/upload` are backend endpoints. Stop the server with Ctrl+C.
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs optional or required ChatGPT sign-in:
+The first build generates the local database binding configuration. Keep `.wrangler/state` to preserve local products, carts, orders and photos. Local data is separate from the live store; it starts empty. No Cloudflare login or production database credentials are needed for local development.
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use the returned `userId` as the stable user key for user-owned records; do not use email as a durable identifier.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send anonymous visitors through Sign in with ChatGPT.
-- In a Server Component, start sign-in with `<a href={chatGPTSignInPath(returnTo)} target="_top">`. The auth helper module is server-only; do not import it into a Client Component.
-- Do not use `fetch`, XHR, a client-side router, or a framework link that can prefetch the sign-in route. SIWC must start as a top-level navigation.
-- Never request the AuthAPI authorization endpoint directly. The dispatch-owned `/signin-with-chatgpt` route must start the SIWC flow.
-- Use `chatGPTSignOutPath(returnTo)` for browser sign-out links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because they depend on per-request identity headers.
+This repository uses the pinned pnpm version from `package.json`; do not use `npm install` or the Linux-only `install:ci` script on Windows. If Corepack reports an unwritable cache, select a project-local cache first:
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the OAuth cookies, and identity header injection. Do not implement app routes for those reserved paths. Routes that do not import and call the helper remain anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the Sites hosting platform's access policy controls for workspace-wide restrictions, or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Local D1 migrations
-
-For a D1-backed local preview, generate SQL with `npm run db:generate`. Build once through the Sites skill's build entrypoint (or `npm run build` for standalone use) to generate `dist/server/wrangler.json`, rebuilding if bindings change. From the project root, apply each pending migration in order:
-
-```sh
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_example.sql
+```powershell
+$env:COREPACK_HOME = Join-Path (Get-Location) '.sites-runtime/corepack'
 ```
 
-Replace the filename with the pending migration and `DB` with your D1 binding name if different. Use `.wrangler/state`, not `.wrangler/state/v3`; Wrangler adds the versioned directories. Do not replay migrations already applied locally. This updates only the preview database; publishing applies production migrations separately.
+## Local login and admin access
 
-## Diagnostic Commands
+Browse without signing in to test guests. **Your account → Sign in with ChatGPT** uses the starter's local-only mock customer (`seedy@sites.test`) on localhost. It does not perform real ChatGPT login and does not grant store administration. The live site's authentication is supplied by Sites.
 
-- `npm run install:ci`: perform the one locked dependency install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build the deployable Sites artifact
-- `npm run start`: preview the built Worker locally with D1/R2 support
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+The existing server policy in `lib/store-server.ts` identifies the store owner by comparing the authenticated account email with the private OWNER_EMAIL setting. A missing setting grants nobody admin access. There is no role column in this version. `/api/store` returns that policy's `admin` boolean, and the UI requires an authenticated user plus `admin === true` after account loading completes. Editable profile details cannot grant access. Do not change the production policy to make every local user an admin.
 
-When using the Sites plugin, follow its skill instructions for installation, builds, and publishing. These npm commands remain available for standalone use.
+To test Store Admin locally, put `OWNER_EMAIL=seedy@sites.test` in an ignored `.dev.vars` file in the project root, restart the development server, and use the local sign-in. Remove that setting and restart to test a normal signed-in customer. This configures only the existing local mock account; production must use the real owner email. Never commit `.dev.vars`. Automated tests below also cover the owner identity in isolation, without changing live authentication or live data.
 
-The portable build runs Vinext directly without a host `timeout` command. The managed-linux build uses `scripts/build-verified.sh` and its existing `SITES_BUILD_TIMEOUT` setting.
+## Tests
 
-## Learn More
+```powershell
+node node_modules/typescript/bin/tsc --noEmit
+node tests/store-integrity.mjs
+```
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+The browser regression test requires Playwright and its Chromium browser. If Playwright is installed separately, set `PLAYWRIGHT_MODULE` to its package directory. Optionally set `BROWSER_CHANNEL=msedge` or `chrome` to use an installed browser.
+
+```powershell
+node tests/storefront-access.mjs
+```
+
+The backend tests execute the real handlers against in-memory SQLite and simulated authenticated users. Browser tests mount the real storefront and UI components with fixture API responses. They cover guests, customers, owners, direct admin navigation, pending/failed account loads, revoked access, and basket behavior. These do not test live ChatGPT authentication.
+
+## Important files
+
+- `app/storefront.tsx`: customer interface and guarded admin interface
+- `app/api/store/route.ts`: catalogue, profile, cart, order and admin APIs
+- `app/api/upload/route.ts`: owner-protected product uploads
+- `app/chatgpt-auth.ts`: platform-authenticated identity
+- `lib/store-server.ts`: existing owner policy and database helpers
+- `db/schema.ts`, `drizzle/`: database schema and migrations
+- `OPERATIONS.md`: store setup and daily operations
+
+For a local production preview, run `npm run build` and then `npm start`. Use its printed URL. This mode does not simulate sign-in. Hosting is currently managed by ChatGPT Sites; pushing to GitHub alone does not deploy the website.
+
