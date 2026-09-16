@@ -1,0 +1,2 @@
+import {bucket} from '@/lib/store-server';
+export async function GET(r:Request,{params}:{params:Promise<{id:string}>}){const {id}=await params;if(!/^[a-f0-9-]+\.(jpg|png|webp)$/.test(id))return new Response('Not found',{status:404});try{const o=await bucket().get(id);if(!o)return new Response('Not found',{status:404});return new Response(o.body,{headers:{'Content-Type':o.httpMetadata?.contentType||'image/jpeg','Cache-Control':'public,max-age=31536000,immutable','X-Content-Type-Options':'nosniff'}});}catch{return new Response('Image unavailable',{status:503});}}

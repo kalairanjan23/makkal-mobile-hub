@@ -1,0 +1,8 @@
+import {sql} from 'drizzle-orm';
+import {sqliteTable,text,integer,check,index} from 'drizzle-orm/sqlite-core';
+export const products=sqliteTable('products',{id:text('id').primaryKey(),name:text('name').notNull(),category:text('category').notNull(),compatibility:text('compatibility').notNull(),color:text('color').notNull(),description:text('description').notNull(),price:integer('price').notNull(),stock:integer('stock').notNull(),active:integer('active').notNull().default(0),image:text('image').notNull().default(''),updated:text('updated').notNull()},t=>[check('stock_nonnegative',sql`${t.stock}>=0`),check('price_positive',sql`${t.price}>0`)]);
+export const settings=sqliteTable('settings',{id:text('id').primaryKey(),data:text('data').notNull()});
+export const customers=sqliteTable('customers',{id:text('id').primaryKey(),data:text('data').notNull()});
+export const carts=sqliteTable('carts',{id:text('id').primaryKey(),data:text('data').notNull(),revision:text('revision').notNull()});
+export const orders=sqliteTable('orders',{id:text('id').primaryKey(),customer:text('customer').notNull(),checkoutKey:text('checkout_key').notNull().unique(),token:text('token').notNull().unique(),data:text('data').notNull(),total:integer('total').notNull(),status:text('status').notNull(),payment:text('payment').notNull(),courier:text('courier').notNull().default(''),tracking:text('tracking').notNull().default(''),created:text('created').notNull(),updated:text('updated').notNull(),history:text('history').notNull()},t=>[index('orders_customer_created').on(t.customer,t.created)]);
+export const limits=sqliteTable('limits',{id:text('id').primaryKey(),count:integer('count').notNull(),expires:integer('expires').notNull()},t=>[check('limit_cap',sql`${t.count}<=5`)]);
